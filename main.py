@@ -18,6 +18,8 @@ from datetime import datetime
 from functools import lru_cache
 import asyncio
 import time
+import pygwalker as pyg
+from pygwalker.api.streamlit import StreamlitRenderer
 
 # Load environment variables from .env file
 load_dotenv('.env')
@@ -56,7 +58,7 @@ async def find_relevant_entries_from_chroma_db(query):
         list: A list of tuples, each containing a Document object and its similarity score.
     """
     # Perform similarity search with score
-    results = await asyncio.to_thread(vectordb.similarity_search_with_score, query, k=1)
+    results = await asyncio.to_thread(vectordb.similarity_search_with_score, query, k=5)
     
     # Print results for debugging
     for doc, score in results:
@@ -210,74 +212,159 @@ def chatbot():
 # =================================================================================================================================================
 def get_data_directory() -> str:
     """Get the path to the data directory."""
-    current_dir = os.getcwd()
-    parent_dir = os.path.dirname(current_dir)
-    return os.path.join(parent_dir, 'data')
+    return os.path.join(os.getcwd(), 'data')
+
+def load_csv(filename: str) -> pd.DataFrame:
+    """Load a CSV file from the data directory."""
+    return pd.read_csv(os.path.join(get_data_directory(), filename))
 
 def get_data():
-    data_dir = get_data_directory()
-    income_statement_df = pd.read_csv(os.path.join(data_dir, 'income_statement.csv'))
-    balance_sheet_df = pd.read_csv(os.path.join(data_dir, 'balance_sheet.csv'))
-    cash_flow_df = pd.read_csv(os.path.join(data_dir, 'cash_flow.csv'))
-    key_metrics_df = pd.read_csv(os.path.join(data_dir, 'key_metrics.csv'))
-    return income_statement_df, balance_sheet_df, cash_flow_df, key_metrics_df 
+    """Load all financial data from CSV files."""
+    annual_files = [
+        'annually_income_statement.csv',
+        'annually_balance_sheet.csv',
+        'annually_cash_flows.csv',
+        'annually_key_metrics.csv'
+    ]
+    quarterly_files = [
+        'quarterly_income_statement.csv',
+        'quarterly_balance_sheet.csv',
+        'quarterly_cash_flows.csv',
+        'quarterly_key_metrics.csv'
+    ]
+    return [load_csv(file) for file in annual_files + quarterly_files]
 
+# Define a color theme for each ticker
+COLOR_THEME = {
+    'ALC': '#1f77b4',  # Blue
+    'COO': '#ff7f0e',  # Orange
+    'BLCO': '#2ca02c',  # Green
+    'RXST': '#d62728',  # Red
+    'JNJ': '#9467bd',  # Purple
+    'NOVN': '#8c564b',  # Brown
+}
 
 def analyze_income_statement(income_statement_df):
-    st.write('Income Statement Analysis')
-
-    # Get unique symbols
     symbols = income_statement_df['Symbol'].unique()
-
-    # User inputs
     selected_symbols = st.multiselect('Select one or more symbols', symbols)
-    features = income_statement_df.select_dtypes(include=['number']).columns  # Excluding non-numeric columns
-    selected_features = st.multiselect('Select one or more features to plot', features)
+    numeric_columns = income_statement_df.select_dtypes(include=['number']).columns
+    numeric_columns = [col for col in numeric_columns if col not in ['Cik', 'Calendar Year']]
+    selected_features = st.multiselect('Select one or more features to plot', numeric_columns)
 
     if not selected_symbols or not selected_features:
         st.warning("Please select at least one symbol and one feature.")
         return
 
-    # Filter data for the selected symbols
-    filtered_df = income_statement_df[income_statement_df['Symbol'].isin(selected_symbols)]
+    filtered_df = income_statement_df[income_statement_df['Symbol'].isin(selected_symbols)].copy()
+    filtered_df['Year'] = pd.to_datetime(filtered_df['Date']).dt.year
 
-    # Create the interactive chart
-    fig = px.line(filtered_df, x='Date', y=selected_features, color='Symbol',
-                  title=f'Selected features over time for chosen symbols')
-    fig.update_xaxes(title_text='Date')
+    fig = px.line(filtered_df, x='Year', y=selected_features, color='Symbol',
+                  title='Selected features over years for chosen symbols',
+                  color_discrete_map=COLOR_THEME)
+    fig.update_xaxes(title_text='Year', tickmode='linear', dtick=1)
     fig.update_yaxes(title_text='Value')
 
-    # Display the chart
     st.plotly_chart(fig, use_container_width=True)
 
-    # Display the dataframe
-    st.write('Income Statement Data')
-    st.write(filtered_df)
+def plot_bar_chart(income_statement_df, metric, period='annually'):
+    filtered_df = income_statement_df.copy()
+    if period == 'annually':
+        filtered_df['Year'] = pd.to_datetime(filtered_df['Date']).dt.year
+        x_axis = 'Year'
+    else:  # quarterly
+        filtered_df['Quarter'] = pd.to_datetime(filtered_df['Date']).dt.to_period('Q').astype(str)
+        x_axis = 'Quarter'
+
+    # Remove rows with NaN values in the metric column
+    filtered_df = filtered_df.dropna(subset=[metric])
+
+    # Sort the dataframe by the selected metric in descending order within each Year/Quarter
+    filtered_df = filtered_df.sort_values([x_axis, metric], ascending=[True, False])
+
+    # Get the min and max values for the x-axis
+    x_min = filtered_df[x_axis].min()
+    x_max = filtered_df[x_axis].max()
+
+    fig = px.bar(filtered_df, x=x_axis, y=metric, color='Symbol',
+                 title=f'{metric} for All Companies ({period.capitalize()})',
+                 barmode='group',
+                 color_discrete_map=COLOR_THEME,
+                 category_orders={'Symbol': filtered_df.groupby(x_axis)[metric].sum().sort_values(ascending=False).index.tolist()})
+    
+    # Set the x-axis range to only include timeframes with data
+    fig.update_xaxes(title_text=x_axis, tickmode='linear', dtick=1, range=[x_min, x_max])
+    fig.update_yaxes(title_text=metric)
+
+    st.plotly_chart(fig, use_container_width=True)
+
+@st.cache_resource
+def get_pyg_app(df):
+    return StreamlitRenderer(df)
+        
+@st.cache_data
+def get_cached_data():
+    return get_data()
+
 
 def main():
-    st.set_page_config(layout="wide", page_title="Financial Data Visualization")
+    st.set_page_config(layout="wide", page_title="Alcon Financial Competitors Analysis")
     
-    # Load data
-    income_statement_df, balance_sheet_df, cash_flow_df, key_metrics_df = get_data()
+    col1, col2 = st.columns(2)
+    with col1:
+        st.image("images/Alcon.png", width=300)
+    with col2:
+        st.image("images/TCU.png", width=250)
+    
+    (
+        annual_income_statement_df,
+        annual_balance_sheet_df,
+        annual_cash_flow_df,
+        annual_key_metrics_df,
+        quarterly_income_statement_df,
+        quarterly_balance_sheet_df,
+        quarterly_cash_flow_df,
+        quarterly_key_metrics_df
+    ) = get_data()
     
     topic = st.sidebar.radio("Select an option", ["Income Statement", "Balance Sheet", "Cash Flow", "Key Metrics", "Chatbot"])
     
     st.title('Financial Data Visualization')
     if topic == "Income Statement":
-        analyze_income_statement(income_statement_df)
+        st.markdown("### Annual Income Statement Analysis")
+        
+        create_own_chart = st.checkbox("Create your own chart")
+        
+        if create_own_chart:
+            pyg_app = get_pyg_app(annual_income_statement_df)
+            pyg_app.explorer()
+        # analyze_income_statement(annual_income_statement_df)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            plot_bar_chart(annual_income_statement_df, 'Revenue')
+        with col2:
+            plot_bar_chart(annual_income_statement_df, 'Net Income')
+
+        st.markdown("### Quarterly Income Statement Analysis")
+        col1, col2 = st.columns(2)
+        with col1:
+            plot_bar_chart(quarterly_income_statement_df, 'Total Revenue', period='quarterly')
+        with col2:
+            plot_bar_chart(quarterly_income_statement_df, 'Net Income', period='quarterly')
+
+
     elif topic == "Balance Sheet":
         st.write('Balance Sheet')
-        st.write(balance_sheet_df)
+        st.write(annual_balance_sheet_df)
     elif topic == "Cash Flow":
         st.write('Cash Flow')
-        st.write(cash_flow_df)
+        st.write(annual_cash_flow_df)
+    elif topic == "Key Metrics":
+        st.write('Key Metrics')
+        st.write(annual_key_metrics_df)
     elif topic == "Chatbot":
         chatbot()
 
 if __name__ == "__main__":
     main()
-
-
-
-
 
