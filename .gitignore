@@ -6,6 +6,4 @@ __pycache__/
 *.pyo
 *.pyd
 /notebooks/yFinance.ipynb
-response_times.csv
-/notebooks/ETL_annually.ipynb
-/notebooks/ETL_quaterly.ipynb
+response_time.csv
