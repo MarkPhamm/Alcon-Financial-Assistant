@@ -1,7 +1,6 @@
 import os
 import pandas as pd
 
-
 def load_data(df, data_dir, file_name):
     """
     Load a DataFrame to a CSV file in the specified data directory.
