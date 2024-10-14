@@ -28,12 +28,32 @@ This Streamlit application provides a comprehensive financial analysis tool for 
    git clone [repository-url]
    ```
 
-2. Install required dependencies:
+2. Navigate to the project directory:
+   ```
+   cd [project-directory]
+   ```
+
+3. Create a virtual environment:
+   ```
+   python -m venv .venv
+   ```
+
+4. Activate the virtual environment:
+   - On Windows:
+     ```
+     .venv\Scripts\activate
+     ```
+   - On macOS and Linux:
+     ```
+     source .venv/bin/activate
+     ```
+
+5. Install required dependencies:
    ```
    pip install -r requirements.txt
    ```
 
-3. Set up environment variables:
+6. Set up environment variables:
    - Create a `.env` file in the root directory
    - Add your OpenAI API key:
      ```
