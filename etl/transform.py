@@ -32,3 +32,9 @@ def add_quarter_and_year_columns(df):
     df['Year'] = df['Date'].dt.year
     
     return df
+
+def add_custom_metrics(df):
+    if 'Current Assets' in df.columns and 'Current Liabilities' in df.columns:
+        df['Current Ratio'] = (df['Current Assets'] / df['Current Liabilities']).round(2)
+    return df
+
