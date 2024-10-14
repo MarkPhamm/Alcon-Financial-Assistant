@@ -240,14 +240,7 @@ def get_data():
     return [load_csv(file) for file in annual_files + quarterly_files]
 
 # Define a color theme for each ticker
-COLOR_THEME = {
-    'ALC': '#1f77b4',  # Blue
-    'COO': '#ff7f0e',  # Orange
-    'BLCO': '#2ca02c',  # Green
-    'RXST': '#d62728',  # Red
-    'JNJ': '#9467bd',  # Purple
-    'NOVN': '#8c564b',  # Brown
-}
+COLOR_THEME = cfg.COLOR_THEME
 
 def analyze_income_statement(income_statement_df):
     symbols = cfg.tickers
@@ -434,25 +427,94 @@ def main():
         with col2:
             plot_bar_chart(annual_income_statement_df, 'Net Income', tickers=selected_tickers)
             plot_line_chart(annual_income_statement_df, ['Basic EPS'], tickers=selected_tickers)
-            plot_line_chart(annual_income_statement_df, ['Diluted EPS'], show_percentage=True, tickers=selected_tickers)
+            plot_line_chart(annual_income_statement_df, ['Operating Expense'], show_percentage=True, tickers=selected_tickers)
 
         st.markdown("### Quarterly Income Statement Analysis")
         col1, col2 = st.columns(2)
         with col1:
             plot_bar_chart(quarterly_income_statement_df, 'Total Revenue', period='quarterly', tickers=selected_tickers)
-            plot_line_chart(quarterly_income_statement_df, ['EBIT'], period='quarterly', tickers=selected_tickers)
-            plot_line_chart(quarterly_income_statement_df, ['EBITDA'], period='quarterly', tickers=selected_tickers)
+            plot_line_chart(quarterly_income_statement_df, ['Normalized EBITDA'], period='quarterly', tickers=selected_tickers)
+            plot_line_chart(quarterly_income_statement_df, ['Normalized Income'], period='quarterly', tickers=selected_tickers)
         with col2:
             plot_bar_chart(quarterly_income_statement_df, 'Net Income', period='quarterly', tickers=selected_tickers)
-            plot_line_chart(quarterly_income_statement_df, ['Gross Profit'], show_percentage=True, period='quarterly', tickers=selected_tickers)
-            plot_line_chart(quarterly_income_statement_df, ['Operating Revenue'], show_percentage=True, period='quarterly', tickers=selected_tickers)
+            plot_line_chart(quarterly_income_statement_df, ['Basic EPS'], show_percentage=True, period='quarterly', tickers=selected_tickers)
+            plot_line_chart(quarterly_income_statement_df, ['Operating Expense'], show_percentage=True, period='quarterly', tickers=selected_tickers)
 
     elif topic == "Balance Sheet":
-        st.write('Balance Sheet')
-        st.write(annual_balance_sheet_df)
+        st.markdown("### Annual Balance Sheet Analysis")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            create_own_chart = st.checkbox("Create your own chart")
+        with col2:
+            if create_own_chart:
+                chart_builder = st.radio("Select a chart builder", ["Pygwalker", "Plotly"])
+        
+        if create_own_chart:
+            if chart_builder == "Pygwalker":
+                st.write("You selected Pygwalker")
+                pyg_app = get_pyg_app(annual_income_statement_df)
+                pyg_app.explorer()
+            else:
+                st.write("You selected Plotly")
+                analyze_income_statement(annual_income_statement_df)
+
+        # Let users select tickers at the beginning
+        all_tickers = sorted(annual_income_statement_df['Symbol'].unique())
+        selected_tickers = st.multiselect('Select tickers to analyze', all_tickers, default=['ALC'])
+
+        col1, col2 = st.columns(2)
+        with col1:
+            plot_bar_chart(annual_balance_sheet_df, 'Working Capital', tickers=selected_tickers)
+        with col2:
+            plot_line_chart(annual_balance_sheet_df, ["Current Ratio"], tickers=selected_tickers)
+        st.markdown("### Quarterly Balance Sheet Analysis")
+        col1, col2 = st.columns(2)
+        with col1:
+            plot_bar_chart(quarterly_balance_sheet_df, 'Working Capital', period='quarterly', tickers=selected_tickers)
+        with col2:
+            plot_line_chart(quarterly_balance_sheet_df, ["Current Ratio"],period='Quarterly', tickers=selected_tickers)
+    
     elif topic == "Cash Flow":
-        st.write('Cash Flow')
-        st.write(annual_cash_flow_df)
+        st.markdown("### Annually Cash Flow Analysis")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            create_own_chart = st.checkbox("Create your own chart")
+        with col2:
+            if create_own_chart:
+                chart_builder = st.radio("Select a chart builder", ["Pygwalker", "Plotly"])
+        
+        if create_own_chart:
+            if chart_builder == "Pygwalker":
+                st.write("You selected Pygwalker")
+                pyg_app = get_pyg_app(annual_income_statement_df)
+                pyg_app.explorer()
+            else:
+                st.write("You selected Plotly")
+                analyze_income_statement(annual_income_statement_df)
+
+        # Let users select tickers at the beginning
+        all_tickers = sorted(annual_income_statement_df['Symbol'].unique())
+        selected_tickers = st.multiselect('Select tickers to analyze', all_tickers, default=['ALC'])
+
+        col1, col2 = st.columns(2)
+        with col1:
+            plot_bar_chart(annual_cash_flow_df, 'Changes In Cash', tickers=selected_tickers)
+            plot_line_chart(annual_cash_flow_df, ['Financing Cash Flow'], show_percentage=True, tickers=selected_tickers)
+        with col2:
+            plot_bar_chart(annual_cash_flow_df, 'Investing Cash Flow', tickers=selected_tickers)
+            plot_line_chart(annual_cash_flow_df, ['Operating Cash Flow'], tickers=selected_tickers)
+
+        st.markdown("### Quarterly Balance Sheet Analysis")
+        col1, col2 = st.columns(2)
+        with col1:
+            plot_bar_chart(quarterly_cash_flow_df, 'Changes In Cash', period='quarterly', tickers=selected_tickers)
+            plot_line_chart(quarterly_cash_flow_df, ['Financing Cash Flow'], period='quarterly', tickers=selected_tickers)
+        with col2:
+            plot_bar_chart(quarterly_cash_flow_df, 'Investing Cash Flow', period='quarterly', tickers=selected_tickers)
+            plot_line_chart(quarterly_cash_flow_df, ['Operating Cash Flow'], show_percentage=True, period='quarterly', tickers=selected_tickers)
+
     elif topic == "Chatbot":
         chatbot()
     elif topic == "Configs":
