@@ -97,7 +97,7 @@ def main():
    
     try:
         # Delete existing vector database
-        delete_vector_db()
+        # delete_vector_db()
         logging.info("Existing vector database deleted")
 
         # Process CSV files
