@@ -13,6 +13,7 @@ from langchain_openai import OpenAIEmbeddings
 import pandas as pd
 import csv
 import plotly.express as px
+import random
 
 # Utility imports
 from datetime import datetime
@@ -28,7 +29,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'etl'))
 COLOR_THEME = cfg.COLOR_THEME
 
 from etl import etl_scripts
-import populate_vectordb_files as pvf 
+import populate_vectordb as pvf 
 
 # Load environment variables from .env file
 load_dotenv('.env')
@@ -209,7 +210,7 @@ def chatbot():
 
         # Display assistant response in chat message container
         with st.chat_message("assistant"):
-            st.markdown(response)
+            st.markdown(response, unsafe_allow_html=True)
         # Add assistant response to chat history
         st.session_state.messages.append({"role": "assistant", "content": response})
 
@@ -217,7 +218,6 @@ def chatbot():
     if st.button("Clear Chat History"):
         st.session_state.messages = []
         st.rerun()
-
 # =================================================================================================================================================
 
 def get_data_directory() -> str:
@@ -228,7 +228,7 @@ def load_csv(filename: str) -> pd.DataFrame:
     """Load a CSV file from the data directory."""
     return pd.read_csv(os.path.join(get_data_directory(), filename))
 
-def get_data():
+def get_data() -> list:
     """Load all financial data from CSV files."""
     annual_files = [
         'annually_income_statement.csv',
@@ -242,101 +242,50 @@ def get_data():
     ]
     return [load_csv(file) for file in annual_files + quarterly_files]
 
-# def plot_bar_chart(income_statement_df, metric, period='annually', tickers=None):
-#     filtered_df = income_statement_df.copy()
-#     if tickers:
-#         filtered_df = filtered_df[filtered_df['Symbol'].isin(tickers)]
-    
-#     if period == 'annually':
-#         filtered_df['Year'] = pd.to_datetime(filtered_df['Date']).dt.year
-#         x_axis = 'Year'
-#     else:  # quarterly
-#         filtered_df['Quarter'] = pd.to_datetime(filtered_df['Date']).dt.to_period('Q').astype(str)
-#         x_axis = 'Quarter'
-
-#     # Remove rows with NaN values in the metric column
-#     filtered_df = filtered_df.dropna(subset=[metric])
-
-#     # Sort the dataframe by the selected metric in descending order within each Year/Quarter
-#     filtered_df = filtered_df.sort_values([x_axis, metric], ascending=[True, False])
-
-#     # Get the min and max values for the x-axis
-#     x_min = filtered_df[x_axis].min()
-#     x_max = filtered_df[x_axis].max()
-
-#     fig = px.bar(filtered_df, x=x_axis, y=metric, color='Symbol',
-#                  title=f'{metric} for Selected Companies ({period.capitalize()})',
-#                  barmode='group',
-#                  color_discrete_map=COLOR_THEME,
-#                  category_orders={'Symbol': filtered_df.groupby(x_axis)[metric].sum().sort_values(ascending=False).index.tolist()})
-    
-#     # Set the x-axis range to include full years, extending slightly beyond the data range
-#     try:
-#         fig.update_xaxes(title_text=x_axis, tickmode='linear', dtick=1, range=[x_min - 0.5, x_max + 0.5])
-#     except TypeError:
-#         st.warning(f"Unable to set x-axis range due to incompatible data types. x_min: {type(x_min)}, x_max: {type(x_max)}")
-#         fig.update_xaxes(title_text=x_axis, tickmode='linear', dtick=1)
-#     fig.update_yaxes(title_text=metric)
-
-#     st.plotly_chart(fig, use_container_width=True)
-
-def plot_line_chart(df, metrics, period='annually', show_percentage=False, tickers=None):
+def plot_line_chart(df: pd.DataFrame, metrics: list, period: str = 'annually', show_percentage: bool = False, tickers: list = None) -> None:
+    """Plot a line chart for the given metrics."""
     filtered_df = df.copy()
     if tickers:
         filtered_df = filtered_df[filtered_df['Symbol'].isin(tickers)]
     
-    if period == 'annually':
-        filtered_df['Year'] = pd.to_datetime(filtered_df['Date']).dt.year
-        x_axis = 'Year'
-    else:  # quarterly
-        filtered_df['Year'] = pd.to_datetime(filtered_df['Date']).dt.year
+    filtered_df['Year'] = pd.to_datetime(filtered_df['Date']).dt.year
+    if period == 'quarterly':
         filtered_df['Quarter'] = pd.to_datetime(filtered_df['Date']).dt.to_period('Q').astype(str)
         filtered_df['Quarter'] = filtered_df['Year'].astype(str) + ' ' + filtered_df['Quarter'].str[-2:]
-        x_axis = 'Quarter'
 
     # Remove rows with NaN values in the metric columns
     filtered_df = filtered_df.dropna(subset=metrics)
 
     # Sort the dataframe by Year and Quarter
-    if period == 'annually':
-        filtered_df = filtered_df.sort_values(['Year'])
-    else:
-        filtered_df = filtered_df.sort_values(['Year', 'Quarter'])
+    sort_columns = ['Year'] if period == 'annually' else ['Year', 'Quarter']
+    filtered_df = filtered_df.sort_values(sort_columns)
 
     # Round the metrics to 2 decimal places
-    for metric in metrics:
-        filtered_df[metric] = filtered_df[metric].round(2)
+    filtered_df[metrics] = filtered_df[metrics].round(2)
 
     if show_percentage:
-        for metric in metrics:
-            filtered_df[metric] = filtered_df[metric] * 100
+        filtered_df[metrics] *= 100
 
     # Ensure each year has all four quarters
     if period == 'quarterly':
         all_quarters = ['Q1', 'Q2', 'Q3', 'Q4']
         filtered_df = filtered_df[filtered_df['Quarter'].str[-2:].isin(all_quarters)]
 
-    fig = px.line(filtered_df, x=x_axis, y=metrics, color='Symbol',
+    fig = px.line(filtered_df, x='Year' if period == 'annually' else 'Quarter', y=metrics, color='Symbol',
                   title=f'{", ".join(metrics)} Trends ({period.capitalize()})',
                   color_discrete_map=COLOR_THEME)
     
     # Set the x-axis properties
     if period == 'annually':
-        x_min = filtered_df[x_axis].min()
-        x_max = filtered_df[x_axis].max()
-        fig.update_xaxes(title_text=x_axis, tickmode='linear', dtick=1, range=[x_min - 0.5, x_max + 0.5])
+        fig.update_xaxes(title_text='Year', tickmode='linear', dtick=1, range=[filtered_df['Year'].min() - 0.5, filtered_df['Year'].max() + 0.5])
     else:
-        fig.update_xaxes(title_text=x_axis, tickmode='linear', dtick=1, categoryorder='category ascending')
+        fig.update_xaxes(title_text='Quarter', tickmode='linear', dtick=1, categoryorder='category ascending')
     
     fig.update_yaxes(title_text=', '.join(metrics))
 
     # Set y-axis range
-    y_min = filtered_df[metrics].min().min()
-    y_max = filtered_df[metrics].max().max()
-    if y_min >= 0:
-        fig.update_yaxes(range=[0, y_max * 1.1])
-    else:
-        fig.update_yaxes(range=[y_min * 1.1, y_max * 1.1])
+    y_min, y_max = filtered_df[metrics].min().min(), filtered_df[metrics].max().max()
+    fig.update_yaxes(range=[y_min * 1.1, y_max * 1.1] if y_min < 0 else [0, y_max * 1.1])
     
     # Add hover data
     hover_template = '%{y:.2f}%' if show_percentage else '%{y:.2f}'
@@ -344,11 +293,10 @@ def plot_line_chart(df, metrics, period='annually', show_percentage=False, ticke
 
     st.plotly_chart(fig, use_container_width=True)
 
-def create_custom_plotly_chart(df):
-    symbols = cfg.tickers
-    selected_symbols = st.multiselect('Select one or more symbols', symbols)
-    numeric_columns = df.select_dtypes(include=['number']).columns
-    numeric_columns = [col for col in numeric_columns if col not in ['Cik', 'Calendar Year']]
+def create_custom_plotly_chart(df: pd.DataFrame) -> None:
+    """Create a custom Plotly chart based on user selections."""
+    selected_symbols = st.multiselect('Select one or more symbols', cfg.tickers)
+    numeric_columns = df.select_dtypes(include=['number']).columns.difference(['Cik', 'Calendar Year']).tolist()
     selected_features = st.multiselect('Select one or more features to plot', numeric_columns)
 
     if not selected_symbols or not selected_features:
@@ -366,13 +314,13 @@ def create_custom_plotly_chart(df):
 
     st.plotly_chart(fig, use_container_width=True)
 
-def create_custom_chart(df):
+def create_custom_chart(df: pd.DataFrame) -> None:
+    """Create a custom chart based on user input."""
     col1, col2 = st.columns(2)
     with col1:
         create_own_chart = st.checkbox("Create your own chart")
     with col2:
-        if create_own_chart:
-            chart_builder = st.radio("Select a chart builder", ["Pygwalker", "Plotly"])
+        chart_builder = st.radio("Select a chart builder", ["Pygwalker", "Plotly"]) if create_own_chart else None
     
     if create_own_chart:
         if chart_builder == "Pygwalker":
@@ -383,91 +331,137 @@ def create_custom_chart(df):
             st.write("You selected Plotly")
             create_custom_plotly_chart(df)
 
-def display_income_statment_tab(annual_income_statement_df, quarterly_income_statement_df):
+def display_income_statement_tab(annual_income_statement_df: pd.DataFrame, quarterly_income_statement_df: pd.DataFrame) -> None:
+    """Display the income statement analysis tab."""
     create_custom_chart(annual_income_statement_df)
     
     st.markdown("### Annual Income Statement Analysis")
-    # Let users select tickers at the beginning
-    all_tickers = sorted(annual_income_statement_df['Symbol'].unique())
-    selected_tickers = st.multiselect('Select tickers to analyze', all_tickers, default=['ALC'])
+    selected_tickers = st.multiselect('Select tickers to analyze', sorted(annual_income_statement_df['Symbol'].unique()), default=['ALC'])
 
     col1, col2 = st.columns(2)
     with col1:
-        plot_line_chart(annual_income_statement_df, ['Total Revenue'], tickers=selected_tickers)
-        plot_line_chart(annual_income_statement_df, ['Normalized EBITDA'], tickers=selected_tickers)
-        plot_line_chart(annual_income_statement_df, ['Normalized Income'], tickers=selected_tickers)
+        for metric in ['Total Revenue', 'Normalized EBITDA', 'Normalized Income']:
+            plot_line_chart(annual_income_statement_df, [metric], tickers=selected_tickers)
     with col2:
-        plot_line_chart(annual_income_statement_df, ['Net Income'], tickers=selected_tickers)
-        plot_line_chart(annual_income_statement_df, ['Basic EPS'], tickers=selected_tickers)
-        plot_line_chart(annual_income_statement_df, ['Operating Expense'], tickers=selected_tickers)
+        for metric in ['Net Income', 'Basic EPS', 'Operating Expense']:
+            plot_line_chart(annual_income_statement_df, [metric], tickers=selected_tickers)
 
     st.markdown("### Quarterly Income Statement Analysis")
     col1, col2 = st.columns(2)
     with col1:
-        plot_line_chart(quarterly_income_statement_df, ['Total Revenue'], period='quarterly', tickers=selected_tickers)
-        plot_line_chart(quarterly_income_statement_df, ['Normalized EBITDA'], period='quarterly', tickers=selected_tickers)
-        plot_line_chart(quarterly_income_statement_df, ['Normalized Income'], period='quarterly', tickers=selected_tickers)
+        for metric in ['Total Revenue', 'Normalized EBITDA', 'Normalized Income']:
+            plot_line_chart(quarterly_income_statement_df, [metric], period='quarterly', tickers=selected_tickers)
     with col2:
-        plot_line_chart(quarterly_income_statement_df, ['Net Income'], period='quarterly', tickers=selected_tickers)
-        plot_line_chart(quarterly_income_statement_df, ['Basic EPS'], show_percentage=True, period='quarterly', tickers=selected_tickers)
-        plot_line_chart(quarterly_income_statement_df, ['Operating Expense'], period='quarterly', tickers=selected_tickers)
+        for metric in ['Net Income', 'Basic EPS', 'Operating Expense']:
+            plot_line_chart(quarterly_income_statement_df, [metric], period='quarterly', tickers=selected_tickers)
 
-def display_cash_flow_tab(annual_cash_flow_df, quarterly_cash_flow_df):
+def display_cash_flow_tab(annual_cash_flow_df: pd.DataFrame, quarterly_cash_flow_df: pd.DataFrame) -> None:
+    """Display the cash flow analysis tab."""
     create_custom_chart(annual_cash_flow_df)
 
     st.markdown("### Annual Cash Flow Analysis")
-    # Let users select tickers at the beginning
-    all_tickers = sorted(annual_cash_flow_df['Symbol'].unique())
-    selected_tickers = st.multiselect('Select tickers to analyze', all_tickers, default=['ALC'])
+    selected_tickers = st.multiselect('Select tickers to analyze', sorted(annual_cash_flow_df['Symbol'].unique()), default=['ALC'])
 
     col1, col2 = st.columns(2)
     with col1:
-        # plot_bar_chart(annual_cash_flow_df, 'Changes In Cash', tickers=selected_tickers)
-        plot_line_chart(annual_cash_flow_df, ['Changes In Cash'], tickers=selected_tickers)
-        plot_line_chart(annual_cash_flow_df, ['Financing Cash Flow'], tickers=selected_tickers)
+        for metric in ['Changes In Cash', 'Financing Cash Flow']:
+            plot_line_chart(annual_cash_flow_df, [metric], tickers=selected_tickers)
     with col2:
-        plot_line_chart(annual_cash_flow_df, ['Investing Cash Flow'], tickers=selected_tickers)
-        plot_line_chart(annual_cash_flow_df, ['Operating Cash Flow'], tickers=selected_tickers)
+        for metric in ['Investing Cash Flow', 'Operating Cash Flow']:
+            plot_line_chart(annual_cash_flow_df, [metric], tickers=selected_tickers)
 
     st.markdown("### Quarterly Cash Flow Analysis")
     col1, col2 = st.columns(2)
     with col1:
-        plot_line_chart(quarterly_cash_flow_df, ['Changes In Cash'], period='quarterly', tickers=selected_tickers)
-        plot_line_chart(quarterly_cash_flow_df, ['Financing Cash Flow'], period='quarterly', tickers=selected_tickers)
+        for metric in ['Changes In Cash', 'Financing Cash Flow']:
+            plot_line_chart(quarterly_cash_flow_df, [metric], period='quarterly', tickers=selected_tickers)
     with col2:
-        plot_line_chart(quarterly_cash_flow_df, ['Investing Cash Flow'], period='quarterly', tickers=selected_tickers)
-        plot_line_chart(quarterly_cash_flow_df, ['Operating Cash Flow'], period='quarterly', tickers=selected_tickers)
-    
-def display_balance_sheet_tab(annual_balance_sheet_df, quarterly_balance_sheet_df):
+        for metric in ['Investing Cash Flow', 'Operating Cash Flow']:
+            plot_line_chart(quarterly_cash_flow_df, [metric], period='quarterly', tickers=selected_tickers)
+
+def display_balance_sheet_tab(annual_balance_sheet_df: pd.DataFrame, quarterly_balance_sheet_df: pd.DataFrame) -> None:
+    """Display the balance sheet analysis tab."""
     create_custom_chart(annual_balance_sheet_df)
 
     st.markdown("### Annual Balance Sheet Analysis")
-    # Let users select tickers at the beginning
-    all_tickers = sorted(annual_balance_sheet_df['Symbol'].unique())
-    selected_tickers = st.multiselect('Select tickers to analyze', all_tickers, default=['ALC'])
+    selected_tickers = st.multiselect('Select tickers to analyze', sorted(annual_balance_sheet_df['Symbol'].unique()), default=['ALC'])
 
     col1, col2 = st.columns(2)
     with col1:
         plot_line_chart(annual_balance_sheet_df, ['Working Capital'], tickers=selected_tickers)
     with col2:
         plot_line_chart(annual_balance_sheet_df, ["Current Ratio"], tickers=selected_tickers)
+
     st.markdown("### Quarterly Balance Sheet Analysis")
     col1, col2 = st.columns(2)
     with col1:
         plot_line_chart(quarterly_balance_sheet_df, ['Working Capital'], period='quarterly', tickers=selected_tickers)
     with col2:
-        plot_line_chart(quarterly_balance_sheet_df, ["Current Ratio"],period='Quarterly', tickers=selected_tickers)
+        plot_line_chart(quarterly_balance_sheet_df, ["Current Ratio"], period='quarterly', tickers=selected_tickers)
+
+def add_ticker():
+    """Add a new ticker to the configuration."""
+
+    new_ticker = st.text_input("Enter a new ticker symbol (e.g., AAPL):")
+    if st.button("Add Ticker"):
+        if new_ticker and new_ticker not in cfg.tickers:
+            cfg.tickers.append(new_ticker)
+            
+            # Generate a random color for the new ticker
+            random_color = "#{:06x}".format(random.randint(0, 0xFFFFFF))
+            cfg.COLOR_THEME[new_ticker] = random_color
+            
+            with open('config.py', 'r') as f:
+                lines = f.readlines()
+            with open('config.py', 'w') as f:
+                for line in lines:
+                    if line.strip() == "tickers = [":
+                        f.write(line)
+                    elif line.strip() == "]":
+                        f.write(f'    "{new_ticker}",\n{line}')
+                    elif line.strip().startswith("COLOR_THEME = {"):
+                        f.write(line)
+                        f.write(f'    "{new_ticker}": "{random_color}",\n')
+                    else:
+                        f.write(line)
+            st.success(f"Ticker {new_ticker} has been added with color {random_color}.")
+        else:
+            st.warning("The ticker is either empty or already exists.")
+
+def remove_ticker():
+    """Remove a ticker from the configuration."""
+
+    ticker_to_remove = st.selectbox("Select a ticker to remove", cfg.tickers)
+    if st.button("Remove Ticker"):
+        if ticker_to_remove in cfg.tickers:
+            cfg.tickers.remove(ticker_to_remove)
+            cfg.COLOR_THEME.pop(ticker_to_remove, None)  # Remove the color associated with the ticker
+            with open('config.py', 'w') as f:
+                f.write("# Configuration for tickers\n")
+                f.write("tickers = [\n")
+                for ticker in cfg.tickers:
+                    f.write(f'    "{ticker}",\n')
+                f.write("]\n")
+                f.write("COLOR_THEME = {\n")
+                for ticker, color in cfg.COLOR_THEME.items():
+                    f.write(f'    "{ticker}": "{color}",\n')
+                f.write("}\n")
+            st.success(f"Ticker {ticker_to_remove} has been removed.")
+        else:
+            st.warning("The ticker was not found.")
 
 @st.cache_resource
-def get_pyg_app(df):
+def get_pyg_app(df: pd.DataFrame) -> StreamlitRenderer:
+    """Get the Pygwalker app instance."""
     return StreamlitRenderer(df)
         
 @st.cache_data
-def get_cached_data():
+def get_cached_data() -> list:
+    """Get cached financial data."""
     return get_data()
 
-
-def main():
+def main() -> None:
+    """Main function to run the Streamlit app."""
     st.set_page_config(layout="wide", page_title="Alcon Financial Competitors Analysis")
     
     col1, col2 = st.columns(2)
@@ -476,7 +470,7 @@ def main():
     with col2:
         st.image("images/TCU.png", width=250)
     
-    # get the data
+    # Get the data
     (
         annual_income_statement_df,
         annual_balance_sheet_df,
@@ -490,14 +484,11 @@ def main():
     
     st.title('Financial Data Visualization')
     if topic == "Income Statement":
-        display_income_statment_tab(annual_income_statement_df, quarterly_income_statement_df)
-    
+        display_income_statement_tab(annual_income_statement_df, quarterly_income_statement_df)
     elif topic == "Balance Sheet":
         display_balance_sheet_tab(annual_balance_sheet_df, quarterly_balance_sheet_df)
-
     elif topic == "Cash Flow":
         display_cash_flow_tab(annual_cash_flow_df, quarterly_cash_flow_df)
-    
     elif topic == "Chatbot":
         chatbot()
     elif topic == "Configs":
@@ -513,54 +504,11 @@ def main():
 
         if action == "Add a New Ticker":
             st.markdown("**Add a New Ticker**")
-            new_ticker = st.text_input("Enter a new ticker symbol (e.g., AAPL):")
-            if st.button("Add Ticker"):
-                if new_ticker and new_ticker not in cfg.tickers:
-                    cfg.tickers.append(new_ticker)
-                    
-                    # Generate a random color for the new ticker
-                    import random
-                    random_color = "#{:06x}".format(random.randint(0, 0xFFFFFF))
-                    cfg.COLOR_THEME[new_ticker] = random_color
-                    
-                    with open('config.py', 'r') as f:
-                        lines = f.readlines()
-                    with open('config.py', 'w') as f:
-                        for line in lines:
-                            if line.strip() == "tickers = [":
-                                f.write(line)
-                            elif line.strip() == "]":
-                                f.write(f'    "{new_ticker}",\n{line}')
-                            elif line.strip().startswith("COLOR_THEME = {"):
-                                f.write(line)
-                                f.write(f'    "{new_ticker}": "{random_color}",\n')
-                            else:
-                                f.write(line)
-                    st.success(f"Ticker {new_ticker} has been added with color {random_color}.")
-                else:
-                    st.warning("The ticker is either empty or already exists.")
+            add_ticker()
         
         elif action == "Remove an Existing Ticker":
             st.markdown("**Remove an Existing Ticker**")
-            ticker_to_remove = st.selectbox("Select a ticker to remove", cfg.tickers)
-            if st.button("Remove Ticker"):
-                if ticker_to_remove in cfg.tickers:
-                    cfg.tickers.remove(ticker_to_remove)
-                    if ticker_to_remove in cfg.COLOR_THEME:  # Check if the ticker exists in COLOR_THEME
-                        del cfg.COLOR_THEME[ticker_to_remove]  # Remove the color associated with the ticker
-                    with open('config.py', 'w') as f:
-                        f.write("# Configuration for tickers\n")
-                        f.write("tickers = [\n")
-                        for ticker in cfg.tickers:
-                            f.write(f'    "{ticker}",\n')
-                        f.write("]\n")
-                        f.write("COLOR_THEME = {\n")
-                        for ticker, color in cfg.COLOR_THEME.items():
-                            f.write(f'    "{ticker}": "{color}",\n')
-                        f.write("}\n")
-                    st.success(f"Ticker {ticker_to_remove} has been removed.")
-                else:
-                    st.warning("The ticker was not found.")
+            remove_ticker()
 
         st.subheader("Step 1: Run ETL Pipeline")
         st.text("This will run the ETL pipeline, which will take about 10 seconds to complete...")
@@ -568,11 +516,11 @@ def main():
             etl_scripts.main()
             st.success("ETL pipeline completed successfully!")
         
-        st.subheader("Step 2: Run Vector Database Population")
-        st.text("This will run the Vector Database Population, which will take about 70 seconds to complete...")
-        if st.button("Run Vector Database Population"):
-            pvf.main()
-            st.success("Vector Database Population completed successfully!")
+        # st.subheader("Step 2: Run Vector Database Population")
+        # st.text("This will run the Vector Database Population, which will take about 70 seconds to complete...")
+        # if st.button("Run Vector Database Population"):
+        #     pvf.main()
+        #     st.success("Vector Database Population completed successfully!")
 
 if __name__ == "__main__":
     main()
