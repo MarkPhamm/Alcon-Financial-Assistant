@@ -49,10 +49,6 @@ def get_income_statement(tickers, period='annually'):
                 # Filter for the last 4 years
                 four_years_ago = pd.Timestamp.now() - pd.DateOffset(years=4)
                 income_statement = income_statement[income_statement['Date'] >= four_years_ago]
-            elif period == 'quarterly':
-                # Filter for the last 5 quarters
-                five_quarters_ago = pd.Timestamp.now() - pd.DateOffset(months=20)
-                income_statement = income_statement[income_statement['Date'] >= five_quarters_ago]
             
             all_data.append(income_statement)
 
@@ -138,10 +134,6 @@ def get_balance_sheet(tickers, period='annually'):
                 # Filter for the last 4 years
                 four_years_ago = pd.Timestamp.now() - pd.DateOffset(years=4)
                 balance_sheet = balance_sheet[balance_sheet['Date'] >= four_years_ago]
-            elif period == 'quarterly':
-                # Filter for the last 5 quarters
-                five_quarters_ago = pd.Timestamp.now() - pd.DateOffset(months=20)
-                balance_sheet = balance_sheet[balance_sheet['Date'] >= five_quarters_ago]
             
             all_data.append(balance_sheet)
 
@@ -225,10 +217,6 @@ def get_cashflow(tickers, period='annually'):
                 # Filter for the last 4 years
                 four_years_ago = pd.Timestamp.now() - pd.DateOffset(years=4)
                 cashflow = cashflow[cashflow['Date'] >= four_years_ago]
-            elif period == 'quarterly':
-                # Filter for the last 5 quarters
-                five_quarters_ago = pd.Timestamp.now() - pd.DateOffset(months=20)
-                cashflow = cashflow[cashflow['Date'] >= five_quarters_ago]
             
             all_data.append(cashflow)
 
