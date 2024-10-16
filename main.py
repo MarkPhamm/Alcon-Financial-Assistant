@@ -29,6 +29,10 @@ COLOR_THEME = cfg.COLOR_THEME
 from etl import etl_scripts
 import populate_vectordb as pvf 
 
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 # Load environment variables from .env file
 load_dotenv('.env')
 
