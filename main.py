@@ -5,7 +5,7 @@ import sys
 from dotenv import load_dotenv
 
 # OpenAI and LangChain imports
-from openai import AsyncOpenAI
+from openai import OpenAI
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 
@@ -17,8 +17,6 @@ import random
 
 # Utility imports
 from datetime import datetime
-from functools import lru_cache
-import asyncio
 import time
 import pygwalker as pyg
 from pygwalker.api.streamlit import StreamlitRenderer
@@ -35,23 +33,22 @@ import populate_vectordb as pvf
 load_dotenv('.env')
 
 # Initialize OpenAI client with API key
-client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 # Define the chatbot model
 chatbot_model = "gpt-3.5-turbo"
 
 # Initialize embeddings with OpenAI's text-embedding-3-large model
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
 
-# Define the persist directory and collection name for the Chroma database
+# Define the persist directory for the Chroma database
 persist_directory = "./chroma_langchain_db"
-collection_name = "alcon_collection_financial_statements"
 
-# Create a Chroma instance with the specified embeddings and collection name
-vectordb = Chroma(persist_directory=persist_directory, embedding_function=embeddings, collection_name=collection_name)
+# Create a Chroma instance for annual and quarterly collections
+annual_vectordb = Chroma(persist_directory=persist_directory, embedding_function=embeddings, collection_name='alcon_collection_financial_statements_annually')
+quarterly_vectordb = Chroma(persist_directory=persist_directory, embedding_function=embeddings, collection_name='alcon_collection_financial_statements_quarterly')
 
 # Function to find relevant entries from the Chroma database
-@lru_cache(maxsize=100)
-async def find_relevant_entries_from_chroma_db(query):
+def find_relevant_entries_from_chroma_db(query, selected_collection):
     """
     Searches the Chroma database for entries relevant to the given query.
 
@@ -67,8 +64,11 @@ async def find_relevant_entries_from_chroma_db(query):
     Returns:
         list: A list of tuples, each containing a Document object and its similarity score.
     """
+    # Determine which collection to use based on the selected collection
+    vectordb = annual_vectordb if selected_collection == "Annually" else quarterly_vectordb
+
     # Perform similarity search with score
-    results = await asyncio.to_thread(vectordb.similarity_search_with_score, query, k=5)
+    results = vectordb.similarity_search_with_score(query, k=5)
     
     # Print results for debugging
     for doc, score in results:
@@ -80,8 +80,7 @@ async def find_relevant_entries_from_chroma_db(query):
     return results
 
 # Function to generate a GPT response
-@lru_cache(maxsize=100)
-async def generate_gpt_response(user_query, chroma_result):
+def generate_gpt_response(user_query, chroma_result):
     '''
     Generate a response using GPT model based on user query and related information.
 
@@ -115,7 +114,7 @@ async def generate_gpt_response(user_query, chroma_result):
 
     [Your augmented response here]
     """
-    response = await client.chat.completions.create(
+    response = client.chat.completions.create(
         model=chatbot_model,
         messages=[
             {"role": "system", "content": "You are a helpful assistant capable of providing both naive and context-aware responses."},
@@ -126,13 +125,12 @@ async def generate_gpt_response(user_query, chroma_result):
     return response.choices[0].message.content
 
 # Function to handle user queries
-async def query_interface(user_query, is_first_prompt):
+def query_interface(user_query, is_first_prompt, selected_collection):
     '''
     Process user query and generate a response using GPT model and relevant information from the database.
 
     For more information on crafting prompts, see:
     https://github.com/openai/openai-python
-
     Parameters:
         user_query (str): The query input by the user
         is_first_prompt (bool): Whether this is the first prompt in the conversation
@@ -142,23 +140,22 @@ async def query_interface(user_query, is_first_prompt):
     '''
     start_time = time.time()
 
-    # Step 1 and 2: Find relevant information and generate response concurrently
-    chroma_task = asyncio.create_task(find_relevant_entries_from_chroma_db(user_query))
-    chroma_result = await chroma_task
-    gpt_response = await generate_gpt_response(user_query, str(chroma_result))
+    # Step 1 and 2: Find relevant information and generate response
+    chroma_result = find_relevant_entries_from_chroma_db(user_query, selected_collection)
+    gpt_response = generate_gpt_response(user_query, str(chroma_result))
 
     end_time = time.time()
     response_time = end_time - start_time
 
-    # Log the response time to a CSV file asynchronously
-    asyncio.create_task(log_response_time(user_query, response_time, is_first_prompt))
+    # Log the response time to a CSV file
+    log_response_time(user_query, response_time, is_first_prompt)
 
     # Step 3: Return the generated response
     return gpt_response
 
-async def log_response_time(query, response_time, is_first_prompt):
+def log_response_time(query, response_time, is_first_prompt):
     """
-    Log the response time for a query to a CSV file asynchronously.
+    Log the response time for a query to a CSV file.
 
     Parameters:
         query (str): The user's query
@@ -168,16 +165,17 @@ async def log_response_time(query, response_time, is_first_prompt):
     csv_file = 'response_times.csv'
     file_exists = os.path.isfile(csv_file)
 
-    async with asyncio.Lock():
-        with open(csv_file, 'a', newline='') as file:
-            writer = csv.writer(file)
-            if not file_exists:
-                writer.writerow(['Timestamp', 'Query', 'Response Time (seconds)', 'Is First Prompt'])
-            writer.writerow([datetime.now(), query, f"{response_time:.2f}", "Yes" if is_first_prompt else "No"])
+    with open(csv_file, 'a', newline='') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(['Timestamp', 'Query', 'Response Time (seconds)', 'Is First Prompt'])
+        writer.writerow([datetime.now(), query, f"{response_time:.2f}", "Yes" if is_first_prompt else "No"])
 
 def chatbot():
-    st.title("Welcome to Alcon Chatbot")
-    st.markdown("### How can we assist you today?")
+    st.markdown("#### How can we assist you today?")
+
+    # Initialize a variable to store the selected collection
+    selected_collection = st.radio("Select Time Period", ("Annually", "Quarterly"))
 
     # Initialize chat history
     if "messages" not in st.session_state:
@@ -186,13 +184,13 @@ def chatbot():
     # Display chat messages from history on app rerun
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+            st.markdown(message["content"], unsafe_allow_html=True)
 
     # React to user input
     if prompt := st.chat_input("Type your question here..."):
         # Display user message in chat message container
         with st.chat_message("user"):
-            st.markdown(prompt)
+            st.markdown(prompt, unsafe_allow_html=True)
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
 
@@ -201,12 +199,7 @@ def chatbot():
             # Get bot response
             is_first_prompt = len(st.session_state.messages) == 1
             
-            # Use asyncio.run in a separate thread to avoid blocking Streamlit
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            response = loop.run_until_complete(query_interface(prompt, is_first_prompt))
-            loop.close()
+            response = query_interface(prompt, is_first_prompt, selected_collection)
 
         # Display assistant response in chat message container
         with st.chat_message("assistant"):
@@ -214,7 +207,7 @@ def chatbot():
         # Add assistant response to chat history
         st.session_state.messages.append({"role": "assistant", "content": response})
 
-    # Add a button to clear chat history
+    # Add a button to clear chat history at the bottom
     if st.button("Clear Chat History"):
         st.session_state.messages = []
         st.rerun()

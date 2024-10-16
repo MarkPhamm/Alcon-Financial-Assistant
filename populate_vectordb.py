@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import pandas as pd
 import logging
 
-load_dotenv('.env') # looks for .env in Python script directory unless path is provided
+load_dotenv('.env')  # looks for .env in Python script directory unless path is provided
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 # Document locations (relative to this py file)
@@ -21,7 +21,8 @@ def process_csv_files(folders):
     """
     Process CSV files from specified folders and convert them to a list of LangChain documents.
     """
-    all_docs = []
+    all_docs_annually = []
+    all_docs_quarterly = []
     for folder in folders:
         if not os.path.exists(folder):
             logging.warning(f"Folder '{folder}' does not exist.")
@@ -45,66 +46,87 @@ def process_csv_files(folders):
                     "row_index": _,
                 }
                 doc = Document(page_content=content, metadata=metadata)
-                all_docs.append(doc)
+                
+                # Determine if the document is annual or quarterly based on the file name
+                if 'annual' in file.lower():
+                    all_docs_annually.append(doc)
+                elif 'quarterly' in file.lower():
+                    all_docs_quarterly.append(doc)
             
             logging.info(f"Processed {len(df)} rows from {file}")
     
-    logging.info(f"Total documents created: {len(all_docs)}")
-    return all_docs
+    logging.info(f"Total annual documents created: {len(all_docs_annually)}")
+    logging.info(f"Total quarterly documents created: {len(all_docs_quarterly)}")
+    return all_docs_annually, all_docs_quarterly
 
-def insert_into_vector_db(docs):
+def insert_into_vector_db(docs_annually, docs_quarterly):
     """
-    Inserts documents into a vector database.
+    Inserts documents into two separate vector databases for annual and quarterly data.
     """
     try:
         embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY, model='text-embedding-3-large')
 
         client = chromadb.PersistentClient(path="./chroma_langchain_db")
-        collection = client.get_or_create_collection(
-            name='alcon_collection_financial_statements',
+        
+        # Create or get collections for annual and quarterly data
+        annual_collection = client.get_or_create_collection(
+            name='alcon_collection_financial_statements_annually',
+            metadata={'hnsw:space': 'cosine'}
+        )
+        quarterly_collection = client.get_or_create_collection(
+            name='alcon_collection_financial_statements_quarterly',
             metadata={'hnsw:space': 'cosine'}
         )
 
-        alcon_vectorstore = Chroma(
+        alcon_vectorstore_annually = Chroma(
             client=client,
-            collection_name='alcon_collection_financial_statements',
+            collection_name='alcon_collection_financial_statements_annually',
+            embedding_function=embeddings,
+        )
+        alcon_vectorstore_quarterly = Chroma(
+            client=client,
+            collection_name='alcon_collection_financial_statements_quarterly',
             embedding_function=embeddings,
         )
 
-        # Insert documents into the vector store
-        alcon_vectorstore.add_documents(documents=docs)
-        logging.info(f"Inserted {len(docs)} documents into the vector store")
+        # Insert documents into the respective vector stores
+        alcon_vectorstore_annually.add_documents(documents=docs_annually)
+        alcon_vectorstore_quarterly.add_documents(documents=docs_quarterly)
+        
+        logging.info(f"Inserted {len(docs_annually)} annual documents into the vector store")
+        logging.info(f"Inserted {len(docs_quarterly)} quarterly documents into the vector store")
     except Exception as e:
         logging.error(f"Error inserting documents into vector store: {str(e)}")
         raise
 
 def delete_vector_db():
     """
-    Deletes the entire vector database.
+    Deletes the entire vector database collections for annual and quarterly data.
     """
     try:
         client = chromadb.PersistentClient(path="./chroma_langchain_db")
-        client.delete_collection(name='alcon_collection_financial_statements')
-        logging.info("Vector database collection deleted successfully")
+        client.delete_collection(name='alcon_collection_financial_statements_annually')
+        client.delete_collection(name='alcon_collection_financial_statements_quarterly')
+        logging.info("Vector database collections deleted successfully")
     except Exception as e:
-        logging.error(f"Error deleting vector database collection: {str(e)}")
+        logging.error(f"Error deleting vector database collections: {str(e)}")
         raise
 
 def main():
     """
-    Main function to process CSV files and populate the vector database.
+    Main function to process CSV files and populate the vector databases.
     """
    
     try:
-        # Delete existing vector database
-        # delete_vector_db()
-        logging.info("Existing vector database deleted")
+        # Delete existing vector databases
+        delete_vector_db()
+        logging.info("Existing vector databases deleted")
 
         # Process CSV files
-        all_docs = process_csv_files(folder_paths)
+        all_docs_annually, all_docs_quarterly = process_csv_files(folder_paths)
 
-        # Insert documents into the vector database
-        insert_into_vector_db(all_docs)
+        # Insert documents into the vector databases
+        insert_into_vector_db(all_docs_annually, all_docs_quarterly)
 
         logging.info("Vector database population completed successfully")
     except Exception as e:
@@ -114,7 +136,6 @@ def main():
 if __name__ == "__main__":
     main()
 
-# Add this function call to the main function if you want to delete the database before repopulating
+# Add this function call to the main function if you want to delete the databases before repopulating
 # Uncomment the following line in the main() function to use it:
 # delete_vector_db()
-
