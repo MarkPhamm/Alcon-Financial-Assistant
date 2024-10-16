@@ -1,6 +1,7 @@
 *.env
 united_way_project/
 /.venv
+/.sqlite3_venv
 __pycache__/
 *.pyc
 *.pyo
