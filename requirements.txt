@@ -17,4 +17,4 @@ tomli==2.0.1
 watchfiles==0.24.0
 yahoo-fin==0.8.9.1
 yfinance==0.2.44
-sqlite3
+pysqlite3-binary

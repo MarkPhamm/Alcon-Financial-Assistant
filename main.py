@@ -1,6 +1,6 @@
-# __import__('pysqlite3')
-# import sys,os
-# sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+__import__('pysqlite3')
+import sys,os
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import sqlite3
 print(sqlite3.sqlite_version)
