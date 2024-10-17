@@ -2,6 +2,9 @@
 # import sys,os
 # sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
+import sqlite3
+print(sqlite3.sqlite_version)
+
 # Streamlit and environment imports
 import streamlit as st
 import os
