@@ -9,6 +9,7 @@ if deploy:
     __import__('pysqlite3')
     sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
     CONFIG_PASSWORD = st.secrets["CONFIG_PASSWORD"]
+
 else:
     from dotenv import load_dotenv
     load_dotenv('.env')
@@ -517,6 +518,7 @@ def get_cached_data() -> list:
 
 def main() -> None:
     """Main function to run the Streamlit app."""
+    st.set_page_config(page_title="Alcon Chatbot", page_icon="💬")
     
     col1, col2 = st.columns(2)
     with col1:
