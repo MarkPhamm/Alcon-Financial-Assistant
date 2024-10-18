@@ -1,18 +1,20 @@
-__import__('pysqlite3')
-import sys,os
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
-import sqlite3
-print(sqlite3.sqlite_version)
-
-# Streamlit and environment imports
-import streamlit as st
 import os
 import sys
-from dotenv import load_dotenv
+
+import streamlit as st
+from openai import OpenAI
+
+deploy = True
+if deploy:
+    __import__('pysqlite3')
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+    CONFIG_PASSWORD = st.secrets["CONFIG_PASSWORD"]
+else:
+    from dotenv import load_dotenv
+    load_dotenv('.env')
+    CONFIG_PASSWORD = os.getenv("CONFIG_PASSWORD")
 
 # OpenAI and LangChain imports
-from openai import OpenAI
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 
@@ -28,19 +30,14 @@ import time
 import pygwalker as pyg
 from pygwalker.api.streamlit import StreamlitRenderer
 
+# Configuration imports
 import config as cfg
+
+# ETL and Vector Database Population imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'etl'))
-# Define a color theme for each ticker
-COLOR_THEME = cfg.COLOR_THEME
-
 from etl import etl_scripts
-import populate_vectordb as pvf 
+import populate_vectordb as pvf
 
-# Load environment variables from .env file
-load_dotenv('.env')
-
-# Initialize OpenAI client with API key
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 # Define the chatbot model
 chatbot_model = "gpt-3.5-turbo"
 
@@ -87,7 +84,7 @@ def find_relevant_entries_from_chroma_db(query, selected_collection):
     return results
 
 # Function to generate a GPT response
-def generate_gpt_response(user_query, chroma_result):
+def generate_gpt_response(user_query, chroma_result, client):
     '''
     Generate a response using GPT model based on user query and related information.
 
@@ -132,7 +129,7 @@ def generate_gpt_response(user_query, chroma_result):
     return response.choices[0].message.content
 
 # Function to handle user queries
-def query_interface(user_query, is_first_prompt, selected_collection):
+def query_interface(user_query, is_first_prompt, selected_collection, client):
     '''
     Process user query and generate a response using GPT model and relevant information from the database.
 
@@ -149,15 +146,18 @@ def query_interface(user_query, is_first_prompt, selected_collection):
 
     # Step 1 and 2: Find relevant information and generate response
     chroma_result = find_relevant_entries_from_chroma_db(user_query, selected_collection)
-    gpt_response = generate_gpt_response(user_query, str(chroma_result))
+    gpt_response = generate_gpt_response(user_query, str(chroma_result), client)
 
-    end_time = time.time()
-    response_time = end_time - start_time
+    # Step 3: Log the response time
+    log_response_time = True
+    if log_response_time:
+        end_time = time.time()
+        response_time = end_time - start_time
 
-    # Log the response time to a CSV file
-    log_response_time(user_query, response_time, is_first_prompt)
+        # Log the response time to a CSV file
+        log_response_time(user_query, response_time, is_first_prompt)
 
-    # Step 3: Return the generated response
+    # Step 4: Return the generated response
     return gpt_response
 
 def log_response_time(query, response_time, is_first_prompt):
@@ -169,7 +169,7 @@ def log_response_time(query, response_time, is_first_prompt):
         response_time (float): The time taken to generate the response
         is_first_prompt (bool): Whether this is the first prompt in the conversation
     """
-    csv_file = 'response_times.csv'
+    csv_file = 'responses.csv'
     file_exists = os.path.isfile(csv_file)
 
     with open(csv_file, 'a', newline='') as file:
@@ -178,46 +178,52 @@ def log_response_time(query, response_time, is_first_prompt):
             writer.writerow(['Timestamp', 'Query', 'Response Time (seconds)', 'Is First Prompt'])
         writer.writerow([datetime.now(), query, f"{response_time:.2f}", "Yes" if is_first_prompt else "No"])
 
-def chatbot():
+def display_chatbot():
     st.markdown("#### How can we assist you today?")
+    # Prompt user for OpenAI API key
+    api_key = st.text_input("Enter your OpenAI API key:", type="password")
 
-    # Initialize a variable to store the selected collection
-    selected_collection = st.radio("Select Time Period", ("Annually", "Quarterly"))
+    if api_key:
+        client = OpenAI(api_key=api_key)
+        # Initialize a variable to store the selected collection
+        selected_collection = st.radio("Select Time Period", ("Annually", "Quarterly"))
+        
+        # Initialize chat history
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
 
-    # Initialize chat history
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+        # Display chat messages from history on app rerun
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"], unsafe_allow_html=True)
 
-    # Display chat messages from history on app rerun
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"], unsafe_allow_html=True)
+        # React to user input
+        if prompt := st.chat_input("Type your question here..."):
+            # Display user message in chat message container
+            with st.chat_message("user"):
+                st.markdown(prompt, unsafe_allow_html=True)
+            # Add user message to chat history
+            st.session_state.messages.append({"role": "user", "content": prompt})
 
-    # React to user input
-    if prompt := st.chat_input("Type your question here..."):
-        # Display user message in chat message container
-        with st.chat_message("user"):
-            st.markdown(prompt, unsafe_allow_html=True)
-        # Add user message to chat history
-        st.session_state.messages.append({"role": "user", "content": prompt})
+            # Show a loading spinner while waiting for the response
+            with st.spinner("Thinking..."):
+                # Get bot response
+                is_first_prompt = len(st.session_state.messages) == 1
+                
+                response = query_interface(prompt, is_first_prompt, selected_collection, client)
 
-        # Show a loading spinner while waiting for the response
-        with st.spinner("Thinking..."):
-            # Get bot response
-            is_first_prompt = len(st.session_state.messages) == 1
-            
-            response = query_interface(prompt, is_first_prompt, selected_collection)
+            # Display assistant response in chat message container
+            with st.chat_message("assistant"):
+                st.markdown(response, unsafe_allow_html=True)
+            # Add assistant response to chat history
+            st.session_state.messages.append({"role": "assistant", "content": response})
 
-        # Display assistant response in chat message container
-        with st.chat_message("assistant"):
-            st.markdown(response, unsafe_allow_html=True)
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
-
-    # Add a button to clear chat history at the bottom
-    if st.button("Clear Chat History"):
-        st.session_state.messages = []
-        st.rerun()
+        # Add a button to clear chat history at the bottom
+        if st.button("Clear Chat History"):
+            st.session_state.messages = []
+            st.rerun()
+    else:
+        st.warning("Please enter your OpenAI API key to proceed.")
 # =================================================================================================================================================
 
 def get_data_directory() -> str:
@@ -273,7 +279,7 @@ def plot_line_chart(df: pd.DataFrame, metrics: list, period: str = 'annually', s
 
     fig = px.line(filtered_df, x='Year' if period == 'annually' else 'Quarter', y=metrics, color='Symbol',
                   title=f'{", ".join(metrics)} Trends ({period.capitalize()})',
-                  color_discrete_map=COLOR_THEME)
+                  color_discrete_map= cfg.COLOR_THEME)
     
     # Set the x-axis properties
     if period == 'annually':
@@ -308,7 +314,7 @@ def create_custom_plotly_chart(df: pd.DataFrame) -> None:
 
     fig = px.line(filtered_df, x='Year', y=selected_features, color='Symbol',
                   title='Selected features over years for chosen symbols',
-                  color_discrete_map=COLOR_THEME)
+                  color_discrete_map=cfg.COLOR_THEME)
     fig.update_xaxes(title_text='Year', tickmode='linear', dtick=1)
     fig.update_yaxes(title_text='Value')
 
@@ -450,6 +456,55 @@ def remove_ticker():
         else:
             st.warning("The ticker was not found.")
 
+def add_new_data():
+    """Add new data to the database."""
+    uploaded_files = st.file_uploader("Choose CSV files to add new data to the Chabot.", type='csv', accept_multiple_files=True)
+
+    if st.button("Add New Data"):
+        if uploaded_files:
+            for uploaded_file in uploaded_files:
+                file_path = os.path.join('data', uploaded_file.name)
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+            st.success("New data added successfully!")
+        else:
+            st.warning("No file was uploaded.")
+
+def display_configs_tab():
+    st.header('Changing Configurations')
+    st.text("This is where you can change the tickers that are being tracked and run the ETL pipeline and Vector Database Population.")
+    config_password = st.text_input("Enter your config password:", type="password")
+    if config_password == CONFIG_PASSWORD:
+        st.subheader("Add New Data")
+        # add_new_data()
+        st.text("Feature coming soon...")
+        
+        st.subheader("Modify Tickers")
+        st.markdown("Here are the tickers currently being tracked: " + ", ".join(cfg.tickers))
+        action = st.radio("Choose an action", ("Add a New Ticker", "Remove an Existing Ticker"))
+
+        if action == "Add a New Ticker":
+            st.markdown("**Add a New Ticker**")
+            add_ticker()
+        
+        elif action == "Remove an Existing Ticker":
+            st.markdown("**Remove an Existing Ticker**")
+            remove_ticker()
+
+        st.subheader("Step 1: Run ETL Pipeline")
+        st.text("This will run the ETL pipeline, which will take about 10 seconds to complete...")
+        if st.button("Run ETL Pipeline"):
+            etl_scripts.main()
+            st.success("ETL pipeline completed successfully!")
+
+        st.subheader("Step 2: Run Vector Database Population")
+        st.text("This populates the vector database with new data, which will take about 5 seconds to complete...")
+        if st.button("Run Vector Database Population"):
+            pvf.main()
+            st.success("Vector Database Population completed successfully!")
+    else:
+        st.warning("Incorrect password.")
+
 @st.cache_resource
 def get_pyg_app(df: pd.DataFrame) -> StreamlitRenderer:
     """Get the Pygwalker app instance."""
@@ -462,7 +517,6 @@ def get_cached_data() -> list:
 
 def main() -> None:
     """Main function to run the Streamlit app."""
-    st.set_page_config(layout="wide", page_title="Alcon Financial Competitors Analysis")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -481,8 +535,7 @@ def main() -> None:
     ) = get_data()
     
     topic = st.sidebar.radio("Select an option", ["Income Statement", "Balance Sheet", "Cash Flow", "Chatbot", "Configs"])
-    
-    st.title('Financial Data Visualization')
+
     if topic == "Income Statement":
         display_income_statement_tab(annual_income_statement_df, quarterly_income_statement_df)
     elif topic == "Balance Sheet":
@@ -490,37 +543,9 @@ def main() -> None:
     elif topic == "Cash Flow":
         display_cash_flow_tab(annual_cash_flow_df, quarterly_cash_flow_df)
     elif topic == "Chatbot":
-        chatbot()
+        display_chatbot()
     elif topic == "Configs":
-        st.header('Changing Configurations')
-        
-        st.subheader("Current Tickers")
-        st.markdown("Here are the tickers currently being tracked: " + ", ".join(cfg.tickers))
-        
-        st.subheader("Modify Tickers")
-        col1, col2 = st.columns(2)
-        
-        action = st.radio("Choose an action", ("Add a New Ticker", "Remove an Existing Ticker"))
-
-        if action == "Add a New Ticker":
-            st.markdown("**Add a New Ticker**")
-            add_ticker()
-        
-        elif action == "Remove an Existing Ticker":
-            st.markdown("**Remove an Existing Ticker**")
-            remove_ticker()
-
-        st.subheader("Step 1: Run ETL Pipeline")
-        st.text("This will run the ETL pipeline, which will take about 10 seconds to complete...")
-        if st.button("Run ETL Pipeline"):
-            etl_scripts.main()
-            st.success("ETL pipeline completed successfully!")
-        
-        # st.subheader("Step 2: Run Vector Database Population")
-        # st.text("This will run the Vector Database Population, which will take about 70 seconds to complete...")
-        # if st.button("Run Vector Database Population"):
-        #     pvf.main()
-        #     st.success("Vector Database Population completed successfully!")
+        display_configs_tab()
 
 if __name__ == "__main__":
     main()
