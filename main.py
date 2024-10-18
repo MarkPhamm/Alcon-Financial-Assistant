@@ -340,9 +340,10 @@ def create_custom_chart(df: pd.DataFrame) -> None:
 
 def display_income_statement_tab(annual_income_statement_df: pd.DataFrame, quarterly_income_statement_df: pd.DataFrame) -> None:
     """Display the income statement analysis tab."""
+
+    st.markdown("### Annual Income Statement Analysis")
     create_custom_chart(annual_income_statement_df)
     
-    st.markdown("### Annual Income Statement Analysis")
     selected_tickers = st.multiselect('Select tickers to analyze', sorted(annual_income_statement_df['Symbol'].unique()), default=['ALC'])
 
     col1, col2 = st.columns(2)
@@ -364,9 +365,10 @@ def display_income_statement_tab(annual_income_statement_df: pd.DataFrame, quart
 
 def display_cash_flow_tab(annual_cash_flow_df: pd.DataFrame, quarterly_cash_flow_df: pd.DataFrame) -> None:
     """Display the cash flow analysis tab."""
-    create_custom_chart(annual_cash_flow_df)
 
     st.markdown("### Annual Cash Flow Analysis")
+    create_custom_chart(annual_cash_flow_df)
+
     selected_tickers = st.multiselect('Select tickers to analyze', sorted(annual_cash_flow_df['Symbol'].unique()), default=['ALC'])
 
     col1, col2 = st.columns(2)
@@ -388,9 +390,10 @@ def display_cash_flow_tab(annual_cash_flow_df: pd.DataFrame, quarterly_cash_flow
 
 def display_balance_sheet_tab(annual_balance_sheet_df: pd.DataFrame, quarterly_balance_sheet_df: pd.DataFrame) -> None:
     """Display the balance sheet analysis tab."""
-    create_custom_chart(annual_balance_sheet_df)
 
     st.markdown("### Annual Balance Sheet Analysis")
+    create_custom_chart(annual_balance_sheet_df)
+
     selected_tickers = st.multiselect('Select tickers to analyze', sorted(annual_balance_sheet_df['Symbol'].unique()), default=['ALC'])
 
     col1, col2 = st.columns(2)
