@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 import pandas as pd
 import logging
+import shutil
 
 load_dotenv('.env')  # looks for .env in Python script directory unless path is provided
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -101,15 +102,19 @@ def insert_into_vector_db(docs_annually, docs_quarterly):
 
 def delete_vector_db():
     """
-    Deletes the entire vector database collections for annual and quarterly data.
+    Deletes everything in the chroma_langchain_db directory except for the chroma.sqlite3 file.
     """
     try:
-        client = chromadb.PersistentClient(path="./chroma_langchain_db")
-        client.delete_collection(name='alcon_collection_financial_statements_annually')
-        client.delete_collection(name='alcon_collection_financial_statements_quarterly')
-        logging.info("Vector database collections deleted successfully")
+        # Remove all files except for chroma.sqlite3
+        for filename in os.listdir("./chroma_langchain_db"):
+            if filename != "chroma.sqlite3":
+                file_path = os.path.join("./chroma_langchain_db", filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+        
+        logging.info("All contents in the chroma_langchain_db directory deleted successfully except for chroma.sqlite3")
     except Exception as e:
-        logging.error(f"Error deleting vector database collections: {str(e)}")
+        logging.error(f"Error deleting contents of chroma_langchain_db directory: {str(e)}")
         raise
 
 def main():
@@ -135,7 +140,3 @@ def main():
 # Execute the main function when the script is run
 if __name__ == "__main__":
     main()
-
-# Add this function call to the main function if you want to delete the databases before repopulating
-# Uncomment the following line in the main() function to use it:
-# delete_vector_db()
