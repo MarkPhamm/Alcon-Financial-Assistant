@@ -1,5 +1,4 @@
 *.env
-united_way_project/
 /.venv
 /.venv311
 /.venv310
@@ -7,5 +6,5 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-/notebooks/yFinance.ipynb
-response_time.csv
+
+responses.csv
