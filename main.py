@@ -518,7 +518,7 @@ def get_cached_data() -> list:
 
 def main() -> None:
     """Main function to run the Streamlit app."""
-    st.set_page_config(page_title="Alcon Chatbot", page_icon="💬")
+    st.set_page_config(layout="wide", page_title="Alcon Chatbot", page_icon="💬")
     
     col1, col2 = st.columns(2)
     with col1:
