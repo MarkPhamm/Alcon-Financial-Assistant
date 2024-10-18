@@ -8,9 +8,15 @@ from dotenv import load_dotenv
 import pandas as pd
 import logging
 import shutil
+import streamlit as st
 
-load_dotenv('.env')  # looks for .env in Python script directory unless path is provided
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+# Load environment variables
+deploy = False
+if deploy == True:
+    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+else:
+    load_dotenv('.env')  # looks for .env in Python script directory unless path is provided
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 # Document locations (relative to this py file)
 folder_paths = ['data']
