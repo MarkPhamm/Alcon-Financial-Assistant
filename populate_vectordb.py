@@ -11,7 +11,7 @@ import shutil
 import streamlit as st
 
 # Load environment variables
-deploy = False
+deploy = True
 if deploy == True:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 else:

@@ -129,6 +129,24 @@ def generate_gpt_response(user_query, chroma_result, client):
 
     return response.choices[0].message.content
 
+def log_response_time(query, response_time, is_first_prompt):
+    """
+    Log the response time for a query to a CSV file.
+
+    Parameters:
+        query (str): The user's query
+        response_time (float): The time taken to generate the response
+        is_first_prompt (bool): Whether this is the first prompt in the conversation
+    """
+    csv_file = 'responses.csv'
+    file_exists = os.path.isfile(csv_file)
+
+    with open(csv_file, 'a', newline='') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(['Timestamp', 'Query', 'Response Time (seconds)', 'Is First Prompt'])
+        writer.writerow([datetime.now(), query, f"{response_time:.2f}", "Yes" if is_first_prompt else "No"])
+
 # Function to handle user queries
 def query_interface(user_query, is_first_prompt, selected_collection, client):
     '''
@@ -150,8 +168,8 @@ def query_interface(user_query, is_first_prompt, selected_collection, client):
     gpt_response = generate_gpt_response(user_query, str(chroma_result), client)
 
     # Step 3: Log the response time
-    log_response_time = True
-    if log_response_time:
+    logging_response_time = True
+    if logging_response_time:
         end_time = time.time()
         response_time = end_time - start_time
 
@@ -161,26 +179,12 @@ def query_interface(user_query, is_first_prompt, selected_collection, client):
     # Step 4: Return the generated response
     return gpt_response
 
-def log_response_time(query, response_time, is_first_prompt):
-    """
-    Log the response time for a query to a CSV file.
-
-    Parameters:
-        query (str): The user's query
-        response_time (float): The time taken to generate the response
-        is_first_prompt (bool): Whether this is the first prompt in the conversation
-    """
-    csv_file = 'responses.csv'
-    file_exists = os.path.isfile(csv_file)
-
-    with open(csv_file, 'a', newline='') as file:
-        writer = csv.writer(file)
-        if not file_exists:
-            writer.writerow(['Timestamp', 'Query', 'Response Time (seconds)', 'Is First Prompt'])
-        writer.writerow([datetime.now(), query, f"{response_time:.2f}", "Yes" if is_first_prompt else "No"])
-
 def display_chatbot():
-    st.markdown("#### How can we assist you today?")
+    st.title("💬 Chatbot")
+    st.write(
+    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
+    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
+    )
     # Prompt user for OpenAI API key
     api_key = st.text_input("Enter your OpenAI API key:", type="password")
 
@@ -224,9 +228,8 @@ def display_chatbot():
             st.session_state.messages = []
             st.rerun()
     else:
-        st.warning("Please enter your OpenAI API key to proceed.")
+        st.info("Please add your OpenAI API key to continue.", icon="🗝️")
 # =================================================================================================================================================
-
 def get_data_directory() -> str:
     """Get the path to the data directory."""
     return os.path.join(os.getcwd(), 'data')
@@ -341,7 +344,7 @@ def create_custom_chart(df: pd.DataFrame) -> None:
 def display_income_statement_tab(annual_income_statement_df: pd.DataFrame, quarterly_income_statement_df: pd.DataFrame) -> None:
     """Display the income statement analysis tab."""
 
-    st.markdown("### Annual Income Statement Analysis")
+    st.title("💰 Annual Income Statement Analysis")
     create_custom_chart(annual_income_statement_df)
     
     selected_tickers = st.multiselect('Select tickers to analyze', sorted(annual_income_statement_df['Symbol'].unique()), default=['ALC'])
@@ -366,7 +369,7 @@ def display_income_statement_tab(annual_income_statement_df: pd.DataFrame, quart
 def display_cash_flow_tab(annual_cash_flow_df: pd.DataFrame, quarterly_cash_flow_df: pd.DataFrame) -> None:
     """Display the cash flow analysis tab."""
 
-    st.markdown("### Annual Cash Flow Analysis")
+    st.title("💵 Annual Cash Flow Analysis")
     create_custom_chart(annual_cash_flow_df)
 
     selected_tickers = st.multiselect('Select tickers to analyze', sorted(annual_cash_flow_df['Symbol'].unique()), default=['ALC'])
@@ -391,7 +394,7 @@ def display_cash_flow_tab(annual_cash_flow_df: pd.DataFrame, quarterly_cash_flow
 def display_balance_sheet_tab(annual_balance_sheet_df: pd.DataFrame, quarterly_balance_sheet_df: pd.DataFrame) -> None:
     """Display the balance sheet analysis tab."""
 
-    st.markdown("### Annual Balance Sheet Analysis")
+    st.title("💲 Annual Balance Sheet Analysis")
     create_custom_chart(annual_balance_sheet_df)
 
     selected_tickers = st.multiselect('Select tickers to analyze', sorted(annual_balance_sheet_df['Symbol'].unique()), default=['ALC'])
@@ -475,8 +478,11 @@ def add_new_data():
             st.warning("No file was uploaded.")
 
 def display_configs_tab():
-    st.header('Changing Configurations')
-    st.text("This is where you can change the tickers that are being tracked and run the ETL pipeline and Vector Database Population.")
+    st.title("⚙️ Configurations")
+    st.write(
+        "This is where you can change the tickers that are being tracked and run the ETL pipeline and Vector Database Population. "
+        "To learn more about how to manage your tickers and run the ETL process, please refer to our documentation."
+    )
     config_password = st.text_input("Enter your config password:", type="password")
     if config_password == CONFIG_PASSWORD:
         st.subheader("Add New Data")
@@ -507,7 +513,7 @@ def display_configs_tab():
             pvf.main()
             st.success("Vector Database Population completed successfully!")
     else:
-        st.warning("Incorrect password.")
+        st.info("Please add your config key to continue.", icon="🗝️")
 
 @st.cache_resource
 def get_pyg_app(df: pd.DataFrame) -> StreamlitRenderer:
