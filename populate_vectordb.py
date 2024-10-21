@@ -1,8 +1,3 @@
-from langchain_core.documents import Document
-from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
-import chromadb
-
 import os
 from dotenv import load_dotenv
 import pandas as pd
@@ -19,6 +14,11 @@ if deploy == True:
 else:
     load_dotenv('.env')  # looks for .env in Python script directory unless path is provided
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+from langchain_core.documents import Document
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
+import chromadb
 
 # Document locations (relative to this py file)
 folder_paths = ['data']

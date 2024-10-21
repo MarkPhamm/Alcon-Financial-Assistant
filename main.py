@@ -4,10 +4,6 @@ import sys
 import streamlit as st
 from openai import OpenAI
 
-# OpenAI and LangChain imports
-from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
-
 # Data handling imports
 import pandas as pd
 import csv
@@ -32,6 +28,10 @@ else:
     from dotenv import load_dotenv
     load_dotenv('.env')
     CONFIG_PASSWORD = os.getenv("CONFIG_PASSWORD")
+
+# OpenAI and LangChain imports
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
 
 # ETL and Vector Database Population imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'etl'))
