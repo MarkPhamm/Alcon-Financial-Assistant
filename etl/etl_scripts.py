@@ -56,13 +56,11 @@ def etl_process(tickers: List[str], data_dir: str):
     quarterly_dataframes = [quarterly_income_statement_df, quarterly_balance_sheet_df, quarterly_cash_flow_df]
     
     transformed_annual_dfs = [
-        transform.add_custom_metrics(transform.add_timeframe_column(df, 'Annually')) for df in annual_dataframes
+        transform.add_custom_metrics(transform.add_quarter_and_year_columns(df)) for df in annual_dataframes
     ]
     
     transformed_quarterly_dfs = [
-        transform.add_custom_metrics(transform.add_quarter_and_year_columns(
-            transform.add_timeframe_column(df, 'Quarterly')
-        )) for df in quarterly_dataframes
+        transform.add_custom_metrics(transform.add_quarter_and_year_columns(df)) for df in quarterly_dataframes
     ]
     # Load data
     logging.info("Loading data")
