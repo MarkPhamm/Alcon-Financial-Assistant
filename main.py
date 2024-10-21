@@ -4,21 +4,6 @@ import sys
 import streamlit as st
 from openai import OpenAI
 
-deploy = True
-if deploy:
-    __import__('pysqlite3')
-    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-    CONFIG_PASSWORD = st.secrets["CONFIG_PASSWORD"]
-
-else:
-    from dotenv import load_dotenv
-    load_dotenv('.env')
-    CONFIG_PASSWORD = os.getenv("CONFIG_PASSWORD")
-
-# OpenAI and LangChain imports
-from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
-
 # Data handling imports
 import pandas as pd
 import csv
@@ -33,6 +18,20 @@ from pygwalker.api.streamlit import StreamlitRenderer
 
 # Configuration imports
 import config as cfg
+
+deploy = cfg.deploy
+if deploy:
+    __import__('pysqlite3')
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+    CONFIG_PASSWORD = st.secrets["CONFIG_PASSWORD"]
+else:
+    from dotenv import load_dotenv
+    load_dotenv('.env')
+    CONFIG_PASSWORD = os.getenv("CONFIG_PASSWORD")
+
+# OpenAI and LangChain imports
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
 
 # ETL and Vector Database Population imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'etl'))
@@ -73,7 +72,7 @@ def find_relevant_entries_from_chroma_db(query, selected_collection):
     vectordb = annual_vectordb if selected_collection == "Annually" else quarterly_vectordb
 
     # Perform similarity search with score
-    results = vectordb.similarity_search_with_score(query, k=5)
+    results = vectordb.similarity_search_with_score(query, k=3)
     
     # Print results for debugging
     for doc, score in results:
@@ -97,24 +96,23 @@ def generate_gpt_response(user_query, chroma_result, client):
         chroma_result (str): Related documents retrieved from the database based on the user query
 
     Returns:
-        str: A formatted string containing both naive and augmented responses
+        str: A formatted string containing the augmented response
     '''    
     
-    # Generate both naive and augmented responses in a single API call
+    current_year = datetime.now().year
+    last_quarter = 2
+
+    # Generate an augmented response in a single API call
     combined_prompt = f"""User query: {user_query}
 
-    Please provide two responses:
-    1. A naive response without any additional context.
-    2. An augmented response considering the following related information from our database:
+    You are a financial advisor at ALCON Inc. Please provide an augmented response considering the following related information from our database:
     {chroma_result}
 
+    Remember that ALCON Inc (ALC) competes with Cooper Companies Inc (COO), Bausch + Lomb Corporation (BLCO), RxSight Inc (RXST), Glaukos Corporation (GKOS), Carl Zeiss Meditec AG (CZMWF), and ResMed Inc (RMD). 
+
+    The current year is {current_year} and the last available quarter is {last_quarter}.
+
     Format your response as follows:
-    **Naive Response**
-
-    [Your naive response here]
-
-    -------------------------
-
     **Augmented Response**
 
     [Your augmented response here]
@@ -122,7 +120,7 @@ def generate_gpt_response(user_query, chroma_result, client):
     response = client.chat.completions.create(
         model=chatbot_model,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant capable of providing both naive and context-aware responses."},
+            {"role": "system", "content": "You are a helpful assistant capable of providing context-aware responses."},
             {"role": "user", "content": combined_prompt}
         ]
     )
@@ -163,6 +161,10 @@ def query_interface(user_query, is_first_prompt, selected_collection, client):
     '''
     start_time = time.time()
 
+    # Check if the user query includes the word 'competitors'
+    if 'competitors' in user_query.lower():
+        user_query = user_query.replace('competitors', f'competitors including {", ".join(ticker for ticker in cfg.tickers if ticker != "ALC")}')
+
     # Step 1 and 2: Find relevant information and generate response
     chroma_result = find_relevant_entries_from_chroma_db(user_query, selected_collection)
     gpt_response = generate_gpt_response(user_query, str(chroma_result), client)
@@ -178,7 +180,6 @@ def query_interface(user_query, is_first_prompt, selected_collection, client):
 
     # Step 4: Return the generated response
     return gpt_response
-
 def display_chatbot():
     st.title("💬 Chatbot")
     st.write(
@@ -200,13 +201,16 @@ def display_chatbot():
         # Display chat messages from history on app rerun
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
-                st.markdown(message["content"], unsafe_allow_html=True)
+                # Replace $ with \$
+                safe_content = message["content"].replace('$', '\\$')
+                st.markdown(safe_content, unsafe_allow_html=True)  
 
         # React to user input
         if prompt := st.chat_input("Type your question here..."):
             # Display user message in chat message container
             with st.chat_message("user"):
-                st.markdown(prompt, unsafe_allow_html=True)
+                safe_prompt = prompt.replace('$', '\\$')
+                st.markdown(safe_prompt) 
             # Add user message to chat history
             st.session_state.messages.append({"role": "user", "content": prompt})
 
@@ -219,7 +223,8 @@ def display_chatbot():
 
             # Display assistant response in chat message container
             with st.chat_message("assistant"):
-                st.markdown(response, unsafe_allow_html=True)
+                safe_response = response.replace('$', '\\$')
+                st.markdown(safe_response, unsafe_allow_html=True) 
             # Add assistant response to chat history
             st.session_state.messages.append({"role": "assistant", "content": response})
 
@@ -528,7 +533,6 @@ def get_cached_data() -> list:
 def main() -> None:
     """Main function to run the Streamlit app."""
     st.set_page_config(layout="wide", page_title="Alcon Chatbot", page_icon="💬")
-    
     col1, col2 = st.columns(2)
     with col1:
         st.image("images/Alcon.png", width=300)
