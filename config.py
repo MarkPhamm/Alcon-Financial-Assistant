@@ -1,4 +1,4 @@
-deploy = False
+deploy = True
 tickers = [
     "ALC",
     "COO",
