@@ -4,12 +4,11 @@ import pandas as pd
 import logging
 import shutil
 import streamlit as st
-
 import config as cfg
 # Load environment variables
 
 deploy = cfg.deploy
-if deploy == True:
+if deploy:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 else:
     load_dotenv('.env')  # looks for .env in Python script directory unless path is provided
@@ -118,19 +117,25 @@ def insert_into_vector_db(docs_annually, docs_quarterly):
 
 def delete_vector_db():
     """
-    Deletes everything in the chroma_db directory except for the chroma.sqlite3 file.
+    Deletes all files and subdirectories inside the Chroma database directory to ensure a fresh start.
     """
     try:
-        # Remove all files except for chroma.sqlite3
-        for filename in os.listdir(DB_PATH):  # Use centralized DB_PATH
-            if filename != "chroma.sqlite3":
+        # Check if the directory exists
+        if os.path.exists(DB_PATH):
+            # Delete all files and subdirectories in the directory
+            for filename in os.listdir(DB_PATH):
                 file_path = os.path.join(DB_PATH, filename)
                 if os.path.isfile(file_path):
                     os.remove(file_path)
-        
-        logging.info("All contents in the chroma_db directory deleted successfully except for chroma.sqlite3")
+                    logging.info(f"Deleted file: {file_path}")
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+                    logging.info(f"Deleted directory: {file_path}")
+            logging.info(f"All files and subdirectories in the chroma_db directory deleted: {DB_PATH}")
+        else:
+            logging.warning(f"Directory {DB_PATH} does not exist, no files to delete.")
     except Exception as e:
-        logging.error(f"Error deleting contents of chroma_db directory: {str(e)}")
+        logging.error(f"Error accessing or deleting files in chroma_db directory: {str(e)}")
         raise
 
 def main():
@@ -142,8 +147,7 @@ def main():
         # Delete existing vector databases
         delete_vector_db()
         logging.info("Existing vector databases deleted")
-
-        # Process CSV files
+        # # Process CSV files
         all_docs_annually, all_docs_quarterly = process_csv_files(folder_paths)
 
         # Insert documents into the vector databases
