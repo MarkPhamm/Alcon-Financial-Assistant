@@ -1,4 +1,4 @@
-# Configuration for tickers
+deploy = True
 tickers = [
     "ALC",
     "COO",
@@ -6,12 +6,12 @@ tickers = [
     "RXST",
     "GKOS",
     "CZMWF",
-    "RMD",
     "JNJ",
+    "RMD",
 ]
 COLOR_THEME = {
+    "RMD": "#680d57",
     "JNJ": "#3e36e3",
-    "RMD": "#99f19b",
     "ALC": "#3498db",
     "COO": "#e74c3c",
     "BLCO": "#2ecc71",
@@ -19,5 +19,3 @@ COLOR_THEME = {
     "GKOS": "#9b59b6",
     "CZMWF": "#ff9800",
 }
-
-deploy = True
