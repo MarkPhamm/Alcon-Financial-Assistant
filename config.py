@@ -1,4 +1,4 @@
-deploy = True
+deploy = False
 tickers = [
     "ALC",
     "COO",
@@ -8,8 +8,10 @@ tickers = [
     "CZMWF",
     "JNJ",
     "RMD",
+    "MDT",
 ]
 COLOR_THEME = {
+    "MDT": "#14c243",
     "RMD": "#680d57",
     "JNJ": "#3e36e3",
     "ALC": "#3498db",

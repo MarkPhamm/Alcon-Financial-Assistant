@@ -118,19 +118,15 @@ def insert_into_vector_db(docs_annually, docs_quarterly):
 
 def delete_vector_db():
     """
-    Deletes everything in the chroma_db directory except for the chroma.sqlite3 file.
+    Deletes the entire chroma_db directory to ensure a fresh start.
     """
     try:
-        # Remove all files except for chroma.sqlite3
-        for filename in os.listdir(DB_PATH):  # Use centralized DB_PATH
-            if filename != "chroma.sqlite3":
-                file_path = os.path.join(DB_PATH, filename)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-        
-        logging.info("All contents in the chroma_db directory deleted successfully except for chroma.sqlite3")
+        # Remove the entire directory
+        if os.path.exists(DB_PATH):
+            shutil.rmtree(DB_PATH)
+            logging.info("Entire chroma_db directory deleted successfully")
     except Exception as e:
-        logging.error(f"Error deleting contents of chroma_db directory: {str(e)}")
+        logging.error(f"Error deleting chroma_db directory: {str(e)}")
         raise
 
 def main():

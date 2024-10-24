@@ -96,8 +96,6 @@ def generate_gpt_response(user_query, chroma_result, client):
     You are a financial advisor at ALCON Inc. Please provide an augmented response considering the following related information from our database:
     {chroma_result}
 
-    Remember that ALCON Inc (ALC) competes with Cooper Companies Inc (COO), Bausch + Lomb Corporation (BLCO), RxSight Inc (RXST), Glaukos Corporation (GKOS), Carl Zeiss Meditec AG (CZMWF), and ResMed Inc (RMD). 
-
     The current year is {current_year} and the last available quarter is {last_quarter}.
 
     Format your response as follows:
