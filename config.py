@@ -9,8 +9,10 @@ tickers = [
     "JNJ",
     "RMD",
     "MDT",
+    "AAPL",
 ]
 COLOR_THEME = {
+    "AAPL": "#1a8af6",
     "MDT": "#14c243",
     "RMD": "#680d57",
     "JNJ": "#3e36e3",
