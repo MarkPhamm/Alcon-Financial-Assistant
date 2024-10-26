@@ -108,17 +108,17 @@ def display_configs_tab():
             st.markdown("**Remove an Existing Ticker**")
             remove_ticker()
 
-        st.subheader("Step 1: Run ETL Pipeline")
-        st.text("This will run the ETL pipeline, which will take about 10 seconds to complete...")
+        st.subheader("Run ETL Pipeline")
+        st.text("Running the ETL pipeline will take about 10 seconds. To populate the vector database with new data, run the Vector Database Population step in the backend when the app is stopped.")
         if st.button("Run ETL Pipeline"):
             etl_scripts.main()
             st.success("ETL pipeline completed successfully!")
 
-        st.subheader("Step 2: Run Vector Database Population")
-        st.text("This populates the vector database with new data, which will take about 5 seconds to complete...")
-        if st.button("Run Vector Database Population"):
-            pvf.main()
-            st.success("Vector Database Population completed successfully!")
+        # st.subheader("Step 2: Run Vector Database Population")
+        # st.text("This populates the vector database with new data, which will take about 5 seconds to complete...")
+        # if st.button("Run Vector Database Population"):
+        #     pvf.main()
+        #     st.success("Vector Database Population completed successfully!")
     else:
         st.info("Please add your config key to continue.", icon="🗝️")
 
