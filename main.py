@@ -207,10 +207,12 @@ def get_pyg_app(df: pd.DataFrame) -> StreamlitRenderer:
 def main() -> None:
     """Main function to run the Streamlit app."""
     st.set_page_config(layout="wide", page_title="Alcon Chatbot", page_icon="💬")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
-        st.image("images/Alcon.png", width=300)
+        st.image("images/Alcon.png", width=350)
     with col2:
+        st.image("images/Marketlens.png", width=250)
+    with col3:
         st.image("images/TCU.png", width=250)
     
     # Get the data
