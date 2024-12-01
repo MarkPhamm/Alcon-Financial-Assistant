@@ -1,6 +1,6 @@
 # Alcon Financial Competitors Analysis App
 ![Untitled](https://github.com/user-attachments/assets/3fb5c7d4-ce5b-46aa-8d89-28afb390555a)
-Access our Streamlit app [here](https://alcon-financial-assistant.streamlit.app/)
+Access our Streamlit app [here](https://marketlens.streamlit.app/)
 
 ## Overview
 This Streamlit application provides a comprehensive financial analysis tool for Alcon and its competitors. It offers various features including financial data visualization, a chatbot for queries, and configuration management.
